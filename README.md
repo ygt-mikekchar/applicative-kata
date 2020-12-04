@@ -446,6 +446,8 @@ No Generics:
   - Rewrite `rand_letter`, `rand_even` and `rand_odd` to use `gen_map` on
     `Gen<T>`.
 
+FIXME: I have not updated the document past this point
+
 ### Step 12. Working with Pairs
 
 It would be nice to build pairs of random values, but not just in a
