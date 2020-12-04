@@ -1,161 +1,152 @@
-# Rust Monad Kata
+# Applicative Kata
 
-This is a kata I have adapted from Mighty Byte's Monad Challenge for
-Haskell: http://mightybyte.github.io/monad-challenges/pages/set1.html
-The intent of the original challenge is to guide the user into a more
-natural understanding of how monads are constructed and why you need
-monads. I've implemented the Random Number portion of this kata in
-many languages and I wanted to have a go at trying it with Rust.  My
-normal approach differs slightly from the original challenge, so I
-will document the steps that I suggest for Rust.
+This is a kata I have adapted from Mighty Byte's Monad Challenge for Haskell:
+http://mightybyte.github.io/monad-challenges/pages/set1.html The intent of the
+original challenge is to guide the user into a more natural understanding of
+how monads are constructed and why you need monads. I've implemented the Random
+Number portion of this kata in many languages and I always enjoy it.  This is a
+language agnotistic description of what to do.
 
-Note: I think that everything in this kata so far can be done with the
-stable compiler.  "Higher order types", which is what we are doing in
-this kata is a well known pain point in Rust.  I didn't know this
-before I started along this path, but even still I think this is a
-great exercise for discovering both the good things about Rust and the
-limitations.
+While the original kata came from Mighty Byte's challenge, I've modified this
+kata and changed it's goal somewhat.  The idea is less to understand monads per
+se, but rather to get a good understanding of applicative functors and why you
+would want to use them.
 
-## How Much Rust Do I Need To Know?
+FIXME: I'm really not selling this kata very well.  This is by far the best
+kata I've done for really cementing certain functional programming ideas in my
+head.  I especially like doing this kata in different programming languages.
+This helps me imagine how to use those FP techniques in that language, which
+may not directly facilitate FP.  I'd like to explain this in the into but I
+don't want to spend too much space.
 
-I did this kata knowing almost nothing about Rust.  Somebody on the
-internet posted a nice comparison between Rust and some other
-functional languages and I wanted to see how easy it would be to
-write code in that style.  I have learned quite a lot about Rust in
-the process, so in that sense it was quite successful.
+## General Problem Statement
 
-I've tried to smooth out a few of the tricky bits with hints along the
-way, but make no mistake: this is learning by getting into the deep
-end.  If you already have a good understanding about monads *or* a
-good understanding about Rust, you will have an easier time.  However,
-I think you can succeed without either.
+Imagine you have a function that generates a random number.  In pseudo code it
+might look like this:
 
-Expect this kata to take you a few days to complete if you are
-learning a lot of new things, but you should be able to find out how
-to do everything you need by reading the excellent Rust documentation
-(as I did).
+```
+function rand_int(int seed) -> (int rand, int new_seed)
+```
+
+In other words, we have a function that takes an integer, which is the seed for
+a random number generation.  The function returns a tuple (or a structure of
+some kind) the contains an integer which is a random number as well as the new
+seed.
+
+We can use this function like this:
+
+```
+(rand1, seed) = rand_int(42)
+(rand2, seed) = rand_int(seed)
+(rand3, seed) = rand_int(seed)
+etc...
+```
+
+Each time we call `rand_int` we get a new seed which we use for the *next* call
+to random.  This is how we get our random numbers.
+
+You can imagine writing a function that gets `n` random ints:
+
+```
+function rand_ints(int n, int seed) -> (Array<int> rands, int new_seed)
+```
+
+It just loops `n` times setting doing the process described above.  It's not
+difficult to write.  We're going to play around with this function and
+especially consider how we might write such a function immutably.
 
 ## Pseudo-Random Number Generation
 
-Computers do not usually generate actual random numbers when you call
-a function like `random()`.  Discussion of pseudo-random number
-generators is outside of the scope of this document, but if you are
-interested, a good first step might be Wikipedia:
+Computers do not usually generate actual random numbers when you call a
+function like `rand_int`.  Discussion of pseudo-random number generators is
+outside of the scope of this document, but if you are interested, a good first
+step might be Wikipedia:
 https://en.wikipedia.org/wiki/Pseudorandom_number_generator
 
-What you need to know for this kata is that a pseudo-random number
-generator generates a series of output in a specified range.  The
-output is deterministic, but not easily predictable without running
-the algorithm itself.
+What you need to know for this kata is that a pseudo-random number generator
+generates a series of output in a specified range.  The output is
+deterministic, but not easily predictable without running the algorithm itself.
 
-The random number function takes a "seed" value and generates an
-output.  It always returns the same output for the same seed value.
-For example, if your "seed" is 42, the random number function might
-always output 2432.  The random number function *also* outputs the
-next seed.  You use that seed to get the next number in the series.
-Pseudo-random number generators are built so that the output is
-uniformly distributed in the desired range.
+The random number function takes a "seed" value and generates an output.  It
+always returns the same output for the same seed value.  For example, if your
+"seed" is 42, the random number function might always output 2432.  The random
+number function *also* outputs the next seed.  You use that seed to get the
+next number in the series.  Pseudo-random number generators are built so that
+the output is uniformly distributed in the desired range.
 
 ### Step 1.  Building a "Pseudo-random" generator function
 
-We could use a good pseudo-random number generator to give realistic output
-for our kata, but there is no real need.  Instead our "pseduo-random"
-generator will be much simpler:
+We could use a good pseudo-random number generator to give realistic output for
+our kata, but there is no real need.  Instead our "pseduo-random" generator
+will be much simpler:
 
-  - Add a type for a `Seed` that is a 32 bit unsigned integer
-  - Write a function called `rand` that takes a `Seed` as input
-    and outputs a tuple composed of a 32 bit unsigned integer
-	and a Seed.
-  - The "random value" that `rand` returns will be equal to the
+  - If your language supports types, make a type or type alias
+    called `Seed` that is an integer.
+  - Write a function called `rand_int` that takes a `Seed` as input
+    and outputs a tuple or structure composed of an integer
+	  and a Seed.
+  - The "random value" that `rand_int` returns will be equal to the
     seed that you used as input.  The next seed it returns will
-	be equal to the previous seed plus 1.
+	  be equal to the previous seed plus 1.
 
-The effect is that if you call `rand(1)` you will receive `(1, 2)`.
-If you call `rand(2)` you will receive `(2, 3)`, etc.  Not a great
-random number generator, but it will be easy to test.
+The effect is that if you call `rand_int(1)` you will receive `(1, 2)`.  If you
+call `rand_int(2)` you will receive `(2, 3)`, etc.  Not a great random number
+generator, but it will be easy to test.
 
-You should write unit tests for this kata.  There is a lot of
-refactoring involved and it will save you a lot of time ensuring that
-you haven't broken something along the way.  Since you can't easily
-test an infinite series (and such a challenge is not what this kata
-is for), just test a couple of examples.
+You should write unit tests for this kata.  There is a lot of refactoring
+involved and it will save you a lot of time ensuring that you haven't broken
+something along the way.  Since you can't easily test an infinite series (and
+such a challenge is not what this kata is for), just test a couple of examples.
 
-### Step 2. Playing with assignments
+### Step 2. An Array of Random Integers
 
-Values of type `Seed` and the tuples that we are using are stack allocated.
-They implement a "trait" called `Copy`.  What that means is that when
-you do an assignment, the value is copied.
+Write a function, called `rand_ints`, that generates an array (or list or
+vector, or whatever is appropriate in your language) of `n` "random" integers.
+Start with a seed of 1.  If you call `rand_ints(5, 1)` (`n` = 5 and `seed` =
+1), the output should be `[1, 2, 3, 4, 5]`.
 
-We also need to work with heap allocated data structures.  An example
-of a Heap allocated data structure is a `Vec` (vector).  These data structures
-implement a "trait" called `Move`.  That means that when you do an
-assignment, the "ownership" of the memory moves.
+There are lots of ways to cheat with this, but try not to.  You will need to
+call `rand_int(1)` to get the first "random" number.  After that you will need to
+use the seed from the previous random number to generate the next random
+number.
 
-Note: A "trait" is kind of like an interface.  It's a promise to the
-compiler that there are specific functions implemented for that data
-type.  We will work with traits later.
+### Step 3. Different kinds of random values
 
-We will try to illustrate the difference simply:
+We want to make a different random generator.  This one will return "random"
+chars.  It will be called `rand_letter` and it will take a `Seed` and return a
+tuple with a `char` and a `Seed`.  `rand_letter(1)` should return `('a', 2)`,
+`rand_letter(2)` should return `('b', 3)`, etc.
 
-  - Write a function that makes a local variable `a` and a local
-    variable `b`.  Assign `a` the value 5 and assign `let b = a;`.
-    Then return `a + b`.  Write a test to ensure that the result
-    is 10.
-  - Write a second function that also has local variables `a` and
-    `b`.  Assign a `Vec` containing a single value, 5, to `a`.  Assign
-    `let b = a;`, like in the previous function.  Add the contents
-    together (something like `a[0] + b[0]`).  Write a test to ensure
-    that the result is 10.
+Additionally, write a function, called `rand_letters`, that that takes an
+integer, `n` and a `Seed` and returns a *string* of `n` "random" letters.  If
+you call `rand_letters(3, 1)` the output should be "abc".  Note that we are
+generating a string here, not an array or list.  For reasons.
 
-The second task is impossible.  Try to understand the error message.
+FIXME: Do we actually have a reason any more?  The original reason was so that
+when we implement the applicative we can make sure to pass in some kind of
+concatenation function for building the output.  I don't know how easy that is
+in some languages, so maybe it's not a great idea.  However, I'll keep this
+here for now and we'll see how it goes.
 
-### Step 3. A Vector of Random Integers
-
-Write a function, called `five_rands`, that generates a `Vec` of 5
-"random" 32 bit unsigned integers.  Start with a seed of 1.  The
-output should be `[1, 2, 3, 4, 5]`.
-
-There are lots of ways to cheat with this, but try not to.  You will
-need to call `rand(1)` to get the first "random" number.  After that
-you will need to use the seed from the previous random number to
-generate the next random number.
-
-While doing this, you will probably notice that Rust variables are
-immutable by default.  You can make a variable mutable with the `mut`
-keyword. It is fairly easy to implement this function with mutable
-variables.  It is quite challenging to make a non-ugly function
-without using `mut`.  It's worth giving it a go, but don't kill
-yourself.  Most of the rest of this kata is discovering how to
-implement this function easily without mutating any data.
-
-### Step 4. Different kinds of random values
-
-We want to make a different random generator.  This one will return
-"random" chars.  It will be called `rand_letter` and it will take
-a `Seed` and return a tuple with a `char` and a `Seed`.
-`rand_letter(1)` should return `('a', 2)`, `rand_letter(2)` should
-return `('b', 3)`, etc.
-
-Additionally, write a function, called `three_rand_letters`, that
-returns a `String` (not a `Vec`!) containing 3 "random" letters.
-Start with a seed of 1.  The output should be "abc".  The same
-notes about Step 3 apply here.
-
-### Step 5. Many kinds of generator functions
+### Step 4. Many kinds of generator functions
 
 We really want to make a variety of different random numbers.
 Implement the following:
 
-  - `rand_even`: The same as rand, but each random number is
+  - `rand_even_int`: The same as rand, but each random number is
     multiplied by 2.
-  - `rand_odd`: The same as rand, but rach random number is multplied
+  - `rand_odd_int`: The same as rand, but rach random number is multplied
     by 2 and has one added to it (`x * 2 + 1`)
 
-We could do a million of these.  It would be better to factor out the
-common code.  Avert your gaze from the next step and spend some time
-playing with refactoring the code.
+### Step 5. Time to refactor
 
-### Step 6. Making a Trait
+We could do a million of these generator functions.  It would be better to
+factor out the common code.  In the next step, we'll talk about how it would
+generally be done in a Functional Programming way.  Spend some time thinking
+about how you might refactor your code before you start to look at the next
+step.
+
+### Step 6. Making a functor
 
 As it happens, what we are trying to do is very common.  There
 is a special word for the thing that we are trying to build:
@@ -164,13 +155,13 @@ is a special word for the thing that we are trying to build:
 A "functor" is really a special word for a container.  It has to
 follow some special rules, but any container you are familiar with is
 likely to also be a functor.  All functors must have a function
-associated with it, usually called `map`.
+associated with it, usually called `map` or `fmap` (for "functor map").
+We will be sticking with `map` for this kata.
 
-You may be familiar with `map` on arrays from a variety of different
-languages.  However, `map` can be used on any functor.  `map`
-takes the contents out of the container, applies a function to the
-contents and then puts the results back into the same kind of
-container.
+You may be familiar with `map` on arrays from a variety of different languages.
+However, `map` can be used on any functor.  `map` takes the contents out of a
+container, applies a transformation to the contents and then puts the results
+back into the same kind of container.
 
 We're going to implement a `Rand` functor on tuples like
 `(uint32, Seed)` and make it a trait called `Functor`.
