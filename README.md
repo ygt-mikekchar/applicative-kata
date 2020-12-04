@@ -201,7 +201,7 @@ Will have to think about it.
 
 #### Side note: Why is it called a "Functor"?
 
-It seems like a strange name for a collection.  In Category theory, a
+It seems like a strange name for a container.  In Category theory, a
 "functor" is actually a "mapping" between 2 categories.  You can
 consider a category as a set of objects.  For example, the
 set of positive integers is a category.  The set of unicode characters
@@ -233,14 +233,14 @@ conditions:
 Things like numbers tend to be functors because you can easily write
 `map` so that those conditions apply.
 
-You might be wondering, "Why is a functor a collection?"  Imagine a
-single number as being a "collection" of one number.  We can also
+You might be wondering, "Why is a functor a container?"  Imagine a
+single number as being a "container" of one number.  We can also
 have a set of tuples: for example the set of `(0, 0), (0, 1), (1, 0),
 (1, 1)`.  You can probably imagine that this is a functor as well
 because we can easily write `map` to work on each value in the tuple.
-The same goes for arrays, strings, and many other collections.
+The same goes for arrays, strings, and many other containers.
 
-That's why we say that a collection that implements `map` is a functor.
+That's why we say that a container that implements `map` is a functor.
 
 ### Step 7. What about `rand_char`?
 
