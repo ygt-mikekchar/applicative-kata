@@ -82,9 +82,13 @@ will be much simpler:
 
   - If your language supports types, make a type or type alias
     called `Seed` that is an integer.
+  - Also, if possible, create a type called `RandInt` that is a tuple
+    or structure composed of an integer value and a `Seed`.  This
+    will be the return type of our random number generator.  Note:
+    It's tempting to parameterise the integer and make something like
+    `Rand<int>`.  Don't do that just yet.
   - Write a function called `rand_int` that takes a `Seed` as input
-    and outputs a tuple or structure composed of an integer
-	  and a Seed.
+    and outputs a `RandInt`
   - The "random value" that `rand_int` returns will be equal to the
     seed that you used as input.  The next seed it returns will
 	  be equal to the previous seed plus 1.
@@ -113,13 +117,14 @@ number.
 ### Step 3. Different kinds of random values
 
 We want to make a different random generator.  This one will return "random"
-chars.  It will be called `rand_letter` and it will take a `Seed` and return a
-tuple with a `char` and a `Seed`.  `rand_letter(1)` should return `('a', 2)`,
-`rand_letter(2)` should return `('b', 3)`, etc.
+chars.  It will be called `rand_char` and it will take a `Seed` and return a
+tuple with a `char` and a `Seed`.   If you are using a language with type
+checking, make a type called `RandLetter`.  `rand_char(1)` should return
+`('a', 2)`, `rand_char(2)` should return `('b', 3)`, etc.
 
-Additionally, write a function, called `rand_letters`, that that takes an
+Additionally, write a function, called `rand_chars`, that that takes an
 integer, `n` and a `Seed` and returns a *string* of `n` "random" letters.  If
-you call `rand_letters(3, 1)` the output should be "abc".  Note that we are
+you call `rand_chars(3, 1)` the output should be "abc".  Note that we are
 generating a string here, not an array or list.  For reasons.
 
 FIXME: Do we actually have a reason any more?  The original reason was so that
@@ -152,33 +157,47 @@ As it happens, what we are trying to do is very common.  There
 is a special word for the thing that we are trying to build:
 "functor".
 
-A "functor" is really a special word for a container.  It has to
-follow some special rules, but any container you are familiar with is
-likely to also be a functor.  All functors must have a function
-associated with it, usually called `map` or `fmap` (for "functor map").
-We will be sticking with `map` for this kata.
+A "functor", as a programming tool, is really a special word for a container.
+It has to follow some special rules, but any container you are familiar with is
+likely to also be a functor.  All functors must have a function associated with
+it, usually called `map` or `fmap` (for "functor map").  We will be sticking
+with `map` for this kata.
+
+FIXME: Equating a functor to a container is pretty misleading from a category
+theory perspective, even though it makes it much easier to understand from
+a programming perspective.  It would be better to find a less lossy way of
+describing what's going on.
 
 You may be familiar with `map` on arrays from a variety of different languages.
-However, `map` can be used on any functor.  `map` takes the contents out of a
-container, applies a transformation to the contents and then puts the results
-back into the same kind of container.
+However, `map` can be used on any functor.  To be more precise, if you can
+implement `map` for the container, then it is a functor.  `map` takes the
+contents out of a container, applies a transformation to the contents and then
+puts the results back into the same kind of container.
 
-We're going to implement a `Rand` functor on tuples like
-`(uint32, Seed)` and make it a trait called `Functor`.
+The `map` that we normally use on an array applies the transformation to
+everying in the array.  However, you can imagine writing the same thing for
+other kinds of containers.  Remember that our `RandInt` type is just a container
+(tuple or structure) that contains an integer and a `Seed`.  We will implement
+`map` for `RandInt`, thus making it a functor.  Depending on your language, you
+may be able to associate a function called `map` to your `RandInt` type, but
+in this documentation we'll refer to the function as `rand_int_map` to make
+it a bit more clear what function we're talking about.
 
-  - Make a type called `Rand` for a tuple that contains an unsigned
-    32 bit integer and a `Seed`.
-  - Write a function called `rand_map`.  It should have the following
-    type signature: `fn rand_map(fn(uint32) -> uint32, Rand) -> Rand`
-  - Use the `rand_map` functionality in `rand_even` and `rand_odd`.
-  - Make a trait called `Functor` with a `map` function and implement
-    this function with the code from `rand_map` (you can delete `rand_map`
-	afterwards).
+FIXME: I'm not sure if object oriented decomposition or Rust style traits
+will work well here because the reverse the parameter list.  We want the
+`RandInt` to be the *last* parameter so that we can do eta decomposition.
+Will have to think about it.
 
-Note: we are going to pass functions (type `fn(...) -> ...`) into `map`
-rather than closures (type `Fn(...) -> ...`) for the moment.  This
-will allow us to avoid issues with lifetimes.  Later we will need
-to modify this to use closures, but for now stick to functions.
+  - Write a function called `rand_int_map` that takes a function which
+    transforms an integer and a `RandInt`.  `rand_int_map` should look
+    something like:
+    `function rand_int_map((function(x int) -> int) f, RandInt r) -> RandInt`
+    Or in other words, the function, f, that you pass to `rand_int_map`
+    should take an integer and return an integer.
+  - `rand_int_map` should take the integer in the `RandInt`, r, and pass it
+    to the function `f`.  It should then return a new `RandInt` value
+    with the result of `f` and the `Seed` from r.
+  - Implement `rand_even_int` and `rand_odd_int` using `rand_int_map`
 
 #### Side note: Why is it called a "Functor"?
 
@@ -223,33 +242,50 @@ The same goes for arrays, strings, and many other collections.
 
 That's why we say that a collection that implements `map` is a functor.
 
-### Step 7. What about `rand_letter`?
+### Step 7. What about `rand_char`?
 
-Our `Functor` trait is pretty awesome but it's kind of pointless if we
-only have a single type.
+  - Create a `rand_char_map` implementation for RandLetter.
 
-  - Create a type for the output of `rand_letter` called `RandLetter`,
-  - Create a `map` implementation for it so that RandLetter has the Functor trait.
-  - Refactor rand_letter to `map` from a `Rand` to a `RandLetter`.
+At this point it's tempting to implement the `rand_char` function
+with `rand_int_map`.  But there is a problem.  `rand_int_map` maps
+an `int` to an `int`.  Similarly `rand_char_map` maps a `char` to
+a `char`.  We have nothing that maps an int to a `char`.
 
-Note: This is impossible.  Why?
+If you are using a language without type checking, you will not
+really have a problem.  You should notice that the implementation
+of `rand_int_map` and `rand_char_map` are identical. In fact, you can
+pass *any* function into it.  So at this point, you can just have
+a single function called `rand_map` and use it for both.  You can
+implement `rand_char` using the `rand_map` function easily.
 
-### Step 8. Parametric Polymorphism
+With a language that does type checking we have a problem.
 
-Raise your hand if you think CS has the *best* jargon of any field!
+### Step 7a. Without type checking
 
-Because of what you discovered in Step 7, you can't write a single
-trait for Rand and RandLetter without using parametric types.
+If your language does not use type checking, it's easy:
 
-  - Refactor `Rand` and `RandLetter` into one type `Rand<T>`.
-  - Make a `Functor` implementation for `Rand<T>`
-  - Implement `rand_letter` using `map`.
+  - rename `rand_int_map` to be `rand_map`
+  - implement `rand_char` using `rand_map`
 
-Note: If you look at the documentation, every example sends a
-reference of `self` (i.e. `&self`) into the functions.  If you do
-that, you will have to worry about lifetimes.  Because we are only
-using data types with the `Copy` trait, save yourself lots of trouble
-and use `self` so that it copies the values rather than moving them.
+### Step 7b. Generics if you've got 'em
+
+For languages with generics:
+
+  - Create a single `Rand<T>` type to replace `RandInt` and `RandChar`.
+
+Now we have to implement `rand_map`.  This is a bit awkward as the
+type needs to look a bit like this:
+
+`function<T,U> rand_map(function f(T x) -> U, Rand<T>) -> Rand<U>`
+
+  - Implement this function if you can with the language you are using
+  - Implement `rand_char` using your new `rand_map`
+
+### Step 7c. Type checking languages without generics.
+
+FIXME: I don't know what to do.  Possibly just live with the fact
+that you can't mix your functor types...  It's not the end of the
+world.  `rand_letter` just has to have an ugly implementation.
 
 ### Step 9. Generating Random Pairs
 
