@@ -119,7 +119,7 @@ number.
 We want to make a different random generator.  This one will return "random"
 chars.  It will be called `rand_char` and it will take a `Seed` and return a
 tuple with a `char` and a `Seed`.   If you are using a language with type
-checking, make a type called `RandLetter`.  `rand_char(1)` should return
+checking, make a type called `RandChar`.  `rand_char(1)` should return
 `('a', 2)`, `rand_char(2)` should return `('b', 3)`, etc.
 
 Additionally, write a function, called `rand_chars`, that that takes an
@@ -244,7 +244,7 @@ That's why we say that a collection that implements `map` is a functor.
 
 ### Step 7. What about `rand_char`?
 
-  - Create a `rand_char_map` implementation for RandLetter.
+  - Create a `rand_char_map` implementation for RandChar.
 
 At this point it's tempting to implement the `rand_char` function
 with `rand_int_map`.  But there is a problem.  `rand_int_map` maps
