@@ -346,162 +346,107 @@ For languages without generics:
 
   - Create `GenInt`, `GenChar` and `GenPair` types.
 
-For languages without type checking.
+For languages without type checking:
 
   - Keep in mind that we're going to be passing these generator
     functions around and doing some clever things with them.  When
     you are naming a variable that contains a generator, consider
     calling is `gen_t`, for example.
 
-With this, we can define `general_pair` as:
+With this, we can define `general_pair` as with generics:
+  - `function<T, U> general_pair(Gen<T> gen_t, Gen<U> gen_u) -> RandPair<T, U>`
 
-`function<T, U> general_pair(Gen<T> gen_t, Gen<U> gen_u) -> RandPair<T, U>`
+or without generics:
+  - `function general_pair(GenChar gen_t, GenInt gen_u) -> RandPair`
 
-or
-
-`function general_pair(GenChar gen_t, GenInt gen_u) -> RandPair`
+or without type checking:
+  - `function general_pair(gen_t, gen_u)`
 
   - implement `general_pair`
   - Refactor `rand_pair` to use `general_pair`.
 
-### Step 11. Returning a Closure
+### Step 10. Returning a Function
 
-Why do we bother passing the `Seed` into `general_pair`?  `general_pair`
-doesn't have to actually calculate everything immediately.
+`general_pair` is potentially a nice improvement (as long as you have
+generics or don't do type checking).  However, there is no particular
+reason that `general_pair` needs to be called immediately.  Imagine that
+instead of returning a `RandPair`, it returned a function that takes
+a seed and returned a `RandPair`: which is, of course, a `GenPair`.
 
-  - Don't pass the `Seed` to `general_pair`.  Instead have it return a
-    closure that takes a `Seed` as a parameter.  `rand_pair` should
-    look something like: `general_pair(rand_letter, rand)(seed)`.
+Generics:
+  - `function<T, U> general_pair(Gen<T> gen_t, Gen<U> gen_u) -> Gen<Pair<T, U>>`
 
-There are two spoilers here for dealing with the return type from
-`general_pair`.  It's worth trying to figure it out yourself, but
-if you get stuck, feel free to read below for some hints.
+No Generics:
+  - `function general_pair(GenChar gen_t, GenInt gen_u) -> GenPair`
 
-Spoiler #1: For very good reasons, Rust implements functions and closures
-differently.  The type of a function is `fn(...) -> ...` The type of a
-closure is `Fn(...) -> ...`.  When Rust returns a value from a
-function, it uses the memory allocated on the stack in the calling
-function.  For example if `f` calls `g` and `g` returns a value, the
-memory for that value is allocated in the stack frame for `f`.
+For a variety of reasons, this will be helpful later.
 
-Unfortunately, a closure (`Fn`) has indeterminate size.  It could be
-anything.  `f` can't know the size of the closure that `g` will return
-until `g` runs -- at which point it is too late.  To solve the
-problem, you can allocate the `Fn` in `g` on the heap and pass a smart
-pointer back to f.  When that smart pointer goes out of scope in `f`
-it will deallocate the memory for the closure.  Since a smart pointer
-has a defined size, you can do this.
+  - Refactor `general_pair` to return a `GenPair`
+  - Call the `GenPair` returned from `general_pair` in `rand_pair`.
 
-To do this you need to create a `Box` for the closure.  The return
-type becomes something like (but not exactly like) `Box<Fn(...) -> ...>`.
+### Step 11. An Inconvenient Truth
 
-Spoiler #2: The final boxed function closes over the parameters sent
-to `general_pair`.  In that way it is also a container.  The problem
-that you will probably find is that the compiler complains about
-lifetimes of objects.  Somehow you have to link the lifetime of the
-returned `Box` to the lifetimes of the `Gen<A>` and `Gen<B>` that you
-are passing to the function.
+Looking at the previous step, you might realise that `general_pair`
+is doing something rather interesting.  It takes 2 `Gen<T>`s
+and combines them into a final `Gen<T>`.  Looking at the signature
+of the version with generics makes that a bit more obvious.
 
-### Step 12. Is it Pure?
+What's *really* interesting, though, is that we're using the seed
+generated from `gen_t` in the application of `gen_u`.  This should
+give you the idea that we can do some general transformations
+of these `Gen` types to produce different kinds of random values.
+The other thing that's really interesting is that `general_pair`
+doesn't take a `Seed` parameter.  We do all of our transformations
+without taking the `Seed` -- yet.  Instead we return a function
+that allows us to specify the seed and then generate our random
+values.
 
-We're going to march down the road towards what is called an
-"applicative functor".  This is one of the places where we will
-diverge a bit from the category theory nomenclature.  In category
-theory the applicative functor is apparently related to a "lax
-monoidal functor with tensorial strength" (according to wikipedia).
-I like to think that they went with "applicative" because the other
-name is too hard to type.
+Remember that `Gen<T>` is just a function, so we are combining these
+functions and returning another function.  Often in functional
+programming this is called "function composition".  We can do all
+sorts of composition on the functions and when we are done, we run
+the result passing in the parameters.
 
-For many people, appicative functors (or "applicatives" for short) are
-a bit of a mystery and several language designers intentionally short
-circuit directly from functor to monad.  I think this is a shame
-because, as you will see later, the applicative falls directly out of
-using functors.  If you don't become familiar with applicatives, then
-you may find yourself staring at some strange code and wondering how
-you got there.
+In our quest to create an "applicative functor" we need to do these
+kinds of transformations.  However, the `Seed` is definitely going
+to get in our way.  In fact, while `Rand<T>` is a functor (we
+implemented `map` on it), it is *not* an applicative functor.
 
-Note: this is probably less likely to happen with a language that
-doesn't natively support partial function application (like Rust),
-but I still think it's worth understanding what the applicative is
-for.
+We aren't going to go down the road of failing to implement an
+applicative functor on `Rand<T>` right now.  I highly recommend
+going back later and trying to implement it as it is very
+instructive.  But for now we'll stick to the path that will give
+us the results we want.
 
-Before we go too far down the rabbit hole, though, let's implement a
-simple function that is required for a type to be an applicative
-functor:
+While `Rand<T>` is not an applicative functor, `Gen<T>` *is*.
+That might seem very strange.  `Gen<T>` is a function!  Didn't
+we say that functors are "containers"?  How is a function a container?
+Well, you can imagine that a function "contains" the value that
+it evaluates to.
 
-  - Implement `rand_pure` for `Rand<T>`.  `rand_pure` takes a value
-    and puts it in the functor.  For example for a vector, `pure(5)`
-    would result in `[5]`.  For `Rand<u32>` that means that we can
-    call `pure(5)` and return a `Rand` with 5 in it.
+For example: `function foo { 42 }` returns `42` when called.  You
+can imagine that it contains the value `42`.  The function
+`function bar(int x) { x }` contains a value as well.  However
+the value is not defined until we actually call the function,
+specifying the parameters.  We can pass `bar` around, but it's value
+is essentially *deferred* until we call it.  If you have ever
+worked with promises in some languages, it is a very similar concept.
 
-You would be right to wonder why we are implementing this.  While it
-makes sense for a vector, does it actually make sense for a `Rand<T>`?
-What should the seed be in that case?  Play with this for a while
-and decide for yourself what `rand_pure` should do.
+Since `Gen<T>` is a functor, let's implement `map` for it (although
+we'll call it `gen_map`.  It should look like:
 
-Note: Historically `pure` had many different names in various
-programming languages including `unit` and `return`.  Lately it seems
-that people are settling on the name `pure` which is why I'm using it
-in this kata.
+Generics:
+  - `function<T,U> gen_map(function(T x) -> U, Gen<T>) -> Gen<U>`
 
-### Step 13. An Inconvenient Truth
+No Generics:
+  - `function gen_int_map(function(int x) -> int, GenInt) -> GenInt`
 
-In fact, the `Rand<T>` type is a functor, but it is *not* an
-"applicative functor".  We can write a `rand_pure` but not without
-considerable comprimise.  Not only do we need to know the "random"
-value to store, but we also need to know the value of the seed.
-
-What can we use instead of `Rand<T>`?  Well, we got stuck
-because we don't know what seed value to put into `Rand<T>`.  What if
-we could defer the choice of the seed until later?  We could have a
-kind of "lazy" `Rand<T>` that lets you fill in the seed when you have
-it.  A function would work: `fn(Seed) -> Rand<T>`.  But this is just
-`Gen<T>`!
-
-But is `Gen<T>` a functor?  What does that mean?  Is a function a
-container?  Actually, it is!  It contains whatever values that it
-evaluates to.  You can happily implement `map` for `Gen<T>`.
-
-  - Add the `Functor` trait to `Gen<T>` by implementing `map` for it.
-  - Rewrite `rand_letter`, `rand_even` and `rand_odd` to use `map` on
+  - Implement `gen_map` for `Gen<T>` (or without generics implement
+    `gen_int_map`, etc).  `gen_map` should look like
+  - Rewrite `rand_letter`, `rand_even` and `rand_odd` to use `gen_map` on
     `Gen<T>`.
 
-There is an unfortunate caveat here: `map` is supposed to take a
-container, take out the contents, apply a function and then put the
-result back into the same kind of container.  `Gen<T>` is the
-container and is a function, but we've seen that Rust functions can
-not return a function.  It can only return a boxed closure.  This is
-not the same type.  We'll roll with it, but this may eventually cause
-us problems.
-
-Once you've implemented `map` for `Gen<T>` think about what it is
-doing. Does your implementation of map guarantee the 2 conditions
-for `Gen<T>` being a functor?  What would the identity function be?
-Why is the second condition especially easy to guarantee?
-
-Spoiler #1: Once you get the trait written you will find that it does
-not work.  That's because Rust does not do type inference on
-functions.  This is very unfortunate, but you can solve the problem by
-casting the generator like `(rand as Gen<u32>).map(...)`.
-
-### Step 14. Pure as the Driven Snow
-
-- To show that we've gotten past our `Applicative` problem, try to
-  implement `gen_pure`.  For a `Gen<u32>`, you should be able to pass
-  a `u32` and it returns a boxed closure.  The boxed closure should
-  accept a seed and return the `u32` that we passed in earlier.
-
-Having done that, you can see that we've fixed our problem, but you
-may still be wondering *why* we need such a strange function.  You
-will see later.
-
-Note: The reason for introducting `pure` so early in the proceedings is
-simply to show that `Rand<T>` won't work without wasting too much
-time.  After completing the kata once, it can be interesting to try to
-implement everything with `Rand<T>` to get a better understanding of
-what the problem is.
-
-### Step 15. Working with Pairs
+### Step 12. Working with Pairs
 
 It would be nice to build pairs of random values, but not just in a
 tuple.  For example, making a pair of random values in a `String`.
@@ -511,7 +456,7 @@ tuple.  For example, making a pair of random values in a `String`.
 Hint: It's very similar to `gen_map`, but with 2 `Gen<T>` values
 instead of one.
 
-#### Step 16. Applicative Functors
+#### Step 13. Applicative Functors
 
 `gen_lift2` is very similar to `gen_map`, but combines the output of 2
 `Gen<T>`s into one.  The function you pass to `gen_lift2` should have a type
