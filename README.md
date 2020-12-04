@@ -249,7 +249,7 @@ That's why we say that a container that implements `map` is a functor.
 At this point it's tempting to implement the `rand_char` function
 with `rand_int_map`.  But there is a problem.  `rand_int_map` maps
 an `int` to an `int`.  Similarly `rand_char_map` maps a `char` to
-a `char`.  We have nothing that maps an int to a `char`.
+a `char`.  We have nothing that maps an `int` to a `char`.
 
 If you are using a language without type checking, you will not
 really have a problem.  You should notice that the implementation
@@ -287,36 +287,82 @@ FIXME: I don't know what to do.  Possibly just live with the fact
 that you can't mix your functor types...  It's not the end of the
 world.  `rand_letter` just has to have an ugly implementation.
 
-### Step 9. Generating Random Pairs
+### Step 8. Generating Random Pairs
 
 Write a function, called `rand_pair` that takes a `Seed` and outputs
-a tuple like the following: `((char, uint32), Seed)`.  For example,
+a tuple like the following: `((char, int), Seed)`. For example,
 `rand_pair(1)` should return `(('a', 2), 3)`.  Basically you have
 to use the seed in the return value from `rand_letter` as the seed
 for `rand`.
 
-Note: It will be very tempting to implement this function using
-`map`, but for now resist that temptation.
+  - Create a type `Pair` that is a tuple of a `char` and an `int`
+    if your language has type checking.
+  - Create a type `RandPair` if your language has type checking but
+    no generics.
+  - implement `rand_pair`
 
-### Step 10. Generator Types
+Note: It will be very tempting to implement this function using
+`rand_map`, but for now resist that temptation.
+
+### Step 9. Generator Types
 
 It would be nice to be able to output pairs of any kind of type.
-Ideally, we would like to implement `rand_pair` by passing the
-functions `rand_letter` and `rand` and having that function
-construct the tuple.  Specifying the parameter list as
-`fn general_pair<A,B>(gena: fn(Seed) -> (A, Seed), genb: fn(Seed) -> (B, Seed), Seed) -> ((A, B), Seed)`
-is a gigantic PITA.
 
-  - Make a single parametric type, `Gen<T>`, for the functions `rand` and
-    `rand_letter`.
-  - Write a function, `general_pair`, that takes a `Gen<A>`, a `Gen<B>` and a
-    `Seed` and returns the correct random pair.
+First, if you have generics:
+  - Implement `Pair` as `Pair<T, U>`
+
+If you have a type checking language and don't have generics, it's
+not really possible to do this.  We'll have to make a different
+type for each kind of pair, which kind of sucks.
+
+We're going to write a helper function called `general_pair`.
+We should be able to implement `rand_pair` something like:
+
+`function rand_pair(Seed seed) -> RandPair { general_pair(rand_char, rand_int, seed) }`
+
+However, the function definition for `general_pair` is a bit
+difficult to write.
+
+If you don't have generics, you can write something like:
+  - `function general_pair(function(Seed) -> RandInt, function(Seed) -> RandChar, Seed) -> RandPair`
+
+However, you will have to implement that for each kind of RandPair.
+This is the price you pay for not having generics: you become king of cut and
+paste.
+
+If you have generics, you need something like:
+  - `function<T,U> general_pair(function(Seed) -> Rand<T>, function(Seed) -> Rand<U>, Seed) -> Rand<Pair<T, U>>`
+
+Either way, it's kind of awful.  If you don't have type checking, the
+following might seem not very useful, but it solves some problems later,
+so please just go with the flow.
+
+Really, our problem is that we need a type for the generator functions.
+For languages with generics:
+
+  - Create a type `Gen<T>` that is `function(Seed) -> Rand<T>`
+
+For languages without generics:
+
+  - Create `GenInt`, `GenChar` and `GenPair` types.
+
+For languages without type checking.
+
+  - Keep in mind that we're going to be passing these generator
+    functions around and doing some clever things with them.  When
+    you are naming a variable that contains a generator, consider
+    calling is `gen_t`, for example.
+
+With this, we can define `general_pair` as:
+
+`function<T, U> general_pair(Gen<T> gen_t, Gen<U> gen_u) -> RandPair<T, U>`
+
+or
+
+`function general_pair(GenChar gen_t, GenInt gen_u) -> RandPair`
+
+  - implement `general_pair`
   - Refactor `rand_pair` to use `general_pair`.
-
-Note: Again, we will eventually need to pass closures into these functions,
-but unfortunately you can't make a type alias for a closure.  Using the
-`Gen<T>` type will makes certain things easier to understand in the future,
-so don't be tempted to jump directly to closures.
 
 ### Step 11. Returning a Closure
 
